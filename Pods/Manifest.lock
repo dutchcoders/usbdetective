@@ -1,0 +1,16 @@
+PODS:
+  - USBDeviceSwift (1.0.3)
+
+DEPENDENCIES:
+  - USBDeviceSwift
+
+SPEC REPOS:
+  https://github.com/cocoapods/specs.git:
+    - USBDeviceSwift
+
+SPEC CHECKSUMS:
+  USBDeviceSwift: b9e85b70d8a78a2f4196881d7b673b7a8b9d117a
+
+PODFILE CHECKSUM: 36a78c02345241c2ff6ce71744e4c90423e40f2e
+
+COCOAPODS: 1.5.2
