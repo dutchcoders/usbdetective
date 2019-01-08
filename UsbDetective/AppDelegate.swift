@@ -29,16 +29,38 @@ class USBDevice {
   var Name: String = ""
   var PrimaryUsage: Int = 0
   var Category: String = ""
+  var Manufacturer: String = ""
+  var TransportKey: String = ""
+  var ManufacturerKey: String = ""
   var ProductID: Int = 0
   var VendorID: Int = 0
+  var SerialNumber: String = ""
   var UniqueIdentifier: Int = 0
+  
+  init(device: IOHIDDevice) {
+    self.Name = IOHIDDeviceGetProperty(device, kIOHIDProductKey as CFString) as? String ?? "HID Device"
+    self.VendorID = IOHIDDeviceGetProperty(device, kIOHIDVendorIDKey as CFString) as? Int ?? 0
+    self.ProductID = IOHIDDeviceGetProperty(device, kIOHIDProductIDKey as CFString) as? Int ?? 0
+    self.UniqueIdentifier = IOHIDDeviceGetProperty(device, kIOHIDUniqueIDKey as CFString) as? Int ?? 0
+    self.TransportKey = IOHIDDeviceGetProperty(device, kIOHIDTransportKey as CFString) as? String ?? ""
+    self.ManufacturerKey = IOHIDDeviceGetProperty(device, kIOHIDManufacturerKey as CFString) as? String ?? ""
+    self.SerialNumber = IOHIDDeviceGetProperty(device, kIOHIDSerialNumberKey as CFString) as? String ?? ""
+    self.PrimaryUsage = IOHIDDeviceGetProperty(device, kIOHIDPrimaryUsageKey as CFString) as? Int ?? 0
+    // self.ReportDescriptorKey = IOHIDDeviceGetProperty(device, kIOHIDReportDescriptorKey as CFString) as? String ?? ""
+    // self.LocationIDKey = IOHIDDeviceGetProperty(device, kIOHIDLocationIDKey as CFString) as? String ?? ""
+    // self.ModelNumberKey = IOHIDDeviceGetProperty(device, kIOHIDModelNumberKey as CFString) as? String ?? ""
+  }
+  
+  func Signature() -> String {
+      return "\(self.Name)#\(self.VendorID)#\(self.ProductID)#\(self.SerialNumber)#\(self.TransportKey)#\(self.ManufacturerKey)"
+  }
 }
 
 @NSApplicationMain
 class AppDelegate: NSObject, NSApplicationDelegate {
   let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
   
-  var devices: [Int: IOHIDDevice] = [:]
+  var devices: [Int: USBDevice] = [:]
 
   let hidTypes = [
     1: "Pointer",
@@ -65,7 +87,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   let aboutItem: NSMenuItem = NSMenuItem(title: "About", action: #selector(doAbout), keyEquivalent: "")
   let resetItem: NSMenuItem = NSMenuItem(title: "Reset", action: #selector(doReset), keyEquivalent: "")
   let quitItem: NSMenuItem = NSMenuItem(title: "Quit", action: #selector(doQuit), keyEquivalent: "")
-  
+
   @objc func doAbout(sender: AnyObject){
     NSApplication.shared.runModal(for: aboutWindowController.window!)
     aboutWindowController.close()
@@ -90,8 +112,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     statusItem.menu?.removeAllItems()
     
     let keys = devices.keys.sorted { (a, b) -> Bool in
-      let nameA = IOHIDDeviceGetProperty(devices[a]!, kIOHIDProductKey as CFString) as? String ?? "HID Device"
-      let nameB = IOHIDDeviceGetProperty(devices[b]!, kIOHIDProductKey as CFString) as? String ?? "HID Device"
+      let nameA = devices[a]!.Name
+      let nameB = devices[b]!.Name
       return nameA.compare(nameB) == ComparisonResult.orderedAscending
     }
     
@@ -111,8 +133,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       for (key) in keys {
         let device = devices[key]!;
         
-        let name = IOHIDDeviceGetProperty(device, kIOHIDProductKey as CFString) as? String ?? "HID Device"
-        let primaryUsageKey = IOHIDDeviceGetProperty(device, kIOHIDPrimaryUsageKey as CFString) as? Int ?? 0
+        let name = device.Name
+        let primaryUsageKey = device.PrimaryUsage
         
         if (primaryUsageKey != type) {
           continue
@@ -132,8 +154,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     for (key) in keys {
       let device = devices[key]!;
       
-      let name = IOHIDDeviceGetProperty(device, kIOHIDProductKey as CFString) as? String ?? "HID Device"
-      let primaryUsageKey = IOHIDDeviceGetProperty(device, kIOHIDPrimaryUsageKey as CFString) as? Int ?? 0
+      let name = device.Name
+      let primaryUsageKey = device.PrimaryUsage
       
       if (types.contains(where: { (arg0) -> Bool in
         let (_, value) = arg0
@@ -156,28 +178,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   }
   
   private func removedDevice(_ device: IOHIDDevice) {
-    var whitelist = UserDefaults.standard.array(forKey: "whitelist") as? [Int] ?? [Int]()
-
-    let name = IOHIDDeviceGetProperty(device, kIOHIDProductKey as CFString) as? String ?? "HID Device"
-    let vendorID = IOHIDDeviceGetProperty(device, kIOHIDVendorIDKey as CFString) as? Int ?? 0
-    let productID = IOHIDDeviceGetProperty(device, kIOHIDProductIDKey as CFString) as? Int ?? 0
     let uniqueIdentifier = IOHIDDeviceGetProperty(device, kIOHIDUniqueIDKey as CFString) as? Int ?? 0
-    let deviceUsageKey = IOHIDDeviceGetProperty(device, kIOHIDDeviceUsageKey as CFString) as? String ?? ""
-    
+    let ub = devices[uniqueIdentifier]!
+
     defer {
       devices.removeValue(forKey: uniqueIdentifier)
       self.updateMenu()
     }
     
-    if (whitelist.contains(uniqueIdentifier)) {
+    let whitelist = UserDefaults.standard.array(forKey: "whitelist") as? [String] ?? [String]()
+    if (whitelist.contains(ub.Signature())) {
       return
     }
+    
+    let usageKeyText = hidTypes[ub.PrimaryUsage] ?? "Unknown Device(\(ub.PrimaryUsage))"
 
     let notification = NSUserNotification()
     // notification.identifier = "unique-id"
-    notification.title = "Device removal detected: \(name)"
+    notification.title = "Device removal detected: \(ub.Name)"
     notification.subtitle = ""
-    notification.informativeText = "The \(deviceUsageKey) device \(name) has been removed. Vendor: 0x\(vendorID) Product: 0x\(productID) Serial=\(uniqueIdentifier) Usage=\(deviceUsageKey)"
+    notification.informativeText = "Removal of device (\(usageKeyText)) interface has been detected. Usage=\(usageKeyText) Vendor: 0x\(String(format:"0x%04X", ub.VendorID)) Product: \(String(format:"0x%04X", ub.ProductID)) Serial=\(ub.SerialNumber) "
     
     notification.soundName = NSUserNotificationDefaultSoundName
     notification.contentImage = NSImage(contentsOf: NSURL(string: "https://placehold.it/300")! as URL)
@@ -188,45 +208,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   }
   
   private func foundDevice(_ device: IOHIDDevice) {
-    var whitelist = UserDefaults.standard.array(forKey: "whitelist") as? [Int] ?? [Int]()
-    
-    let name = IOHIDDeviceGetProperty(device, kIOHIDProductKey as CFString) as? String ?? "HID Device"
-    let vendorID = IOHIDDeviceGetProperty(device, kIOHIDVendorIDKey as CFString) as? Int ?? 0
-    let productID = IOHIDDeviceGetProperty(device, kIOHIDProductIDKey as CFString) as? Int ?? 0
-    
-    let uniqueIdentifier = IOHIDDeviceGetProperty(device, kIOHIDUniqueIDKey as CFString) as? Int ?? 0
-    let primaryUsageKey = IOHIDDeviceGetProperty(device, kIOHIDPrimaryUsageKey as CFString) as? Int ?? 0
-    _ = IOHIDDeviceGetProperty(device, kIOHIDManufacturerKey as CFString) as? String ?? ""
-    _ = IOHIDDeviceGetProperty(device, kIOHIDTransportKey as CFString) as? String ?? ""
-    
-    let usageKeyText = hidTypes[primaryUsageKey] ?? "Unknown Device(\(primaryUsageKey))"
+    var whitelist = UserDefaults.standard.array(forKey: "whitelist") as? [String] ?? [String]()
 
+    let ub = USBDevice(device: device)
+    
     defer {
-      devices[uniqueIdentifier] = device
-      
-      // update menu
+      devices[ub.UniqueIdentifier] = ub
       self.updateMenu()
     }
 
-    if (whitelist.contains(uniqueIdentifier)) {
+    if (whitelist.contains(ub.Signature())) {
       return
     }
 
     let viewController = newDeviceWindowController.contentViewController as! NewDeviceViewController
     
-    let ub = USBDevice()
-    ub.Name = name
-    ub.UniqueIdentifier = uniqueIdentifier
-    ub.Category = usageKeyText
-    ub.VendorID = vendorID
-    ub.ProductID = productID
-    ub.PrimaryUsage = primaryUsageKey
-    
     viewController.representedObject = ub
     
     switch (newDeviceWindowController as! NewDeviceWindowController).runModal() {
     case .Whitelist:
-      whitelist.append(uniqueIdentifier)
+      whitelist.append(ub.Signature())
       UserDefaults.standard.set(whitelist, forKey: "whitelist")
       break
     case .Close:
@@ -235,11 +236,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     newDeviceWindowController.close()
     
+    let usageKeyText = hidTypes[ub.PrimaryUsage] ?? "Unknown Device(\(ub.PrimaryUsage))"
+
     let notification = NSUserNotification()
-    notification.identifier = "\(uniqueIdentifier)"
-    notification.title = "New \(usageKeyText) interface detected: \(name)"
+    notification.identifier = "\(ub.UniqueIdentifier)"
+    notification.title = "New device detected: \(ub.Name)"
     notification.subtitle = ""
-    notification.informativeText = "A \(usageKeyText) interface has been detected. Usage=\(usageKeyText) Vendor: 0x\(vendorID) Product: 0x\(productID) Serial=\(uniqueIdentifier) "
+    notification.informativeText = "New device (\(usageKeyText)) interface has been detected. Usage=\(usageKeyText) Vendor: 0x\(String(format:"0x%04X", ub.VendorID)) Product: \(String(format:"0x%04X", ub.ProductID)) Serial=\(ub.SerialNumber) "
     
     // notification.soundName = NSUserNotificationDefaultSoundName
     // notification.contentImage = NSImage(contentsOf: NSURL(string: "https://placehold.it/300")! as URL)
@@ -320,7 +323,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     IOServiceAddMatchingNotification(notifyPort, kIOTerminatedNotification, matchingDict, usbDeviceDisappeared, selfPtr, &lostDevicesIterator)
     
-    self.listDevices()
+    _ = self.listDevices()
  }
   
   public func listDevices() -> [String]? {
@@ -340,10 +343,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     for service in IOServiceSequence(iterator) {
       if let device = BBBUSBDevice(service: service) { // move service
-        print(device)
         devices.append(device.name)
       }
     }
+    
     return devices
   }
 

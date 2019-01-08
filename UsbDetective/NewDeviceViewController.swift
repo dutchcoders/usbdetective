@@ -23,6 +23,7 @@ class NewDeviceViewController: NSViewController {
   @IBOutlet weak var ProductIdentifier: NSTextField!
   @IBOutlet weak var Serial: NSTextField!
   @IBOutlet weak var Name: NSTextField!
+  @IBOutlet weak var Manufacturer: NSTextField!
   
   let hidTypes = [
     1: "Pointer",
@@ -60,7 +61,9 @@ class NewDeviceViewController: NSViewController {
       
       let productID = (representedObject as! USBDevice).ProductID
       ProductIdentifier.stringValue = "\(products[productID] ?? "Unknown") (\(String(format:"0x%04X", productID)))"
-      Serial.stringValue = "\((representedObject as! USBDevice).UniqueIdentifier)"
+      Serial.stringValue = "\((representedObject as! USBDevice).SerialNumber)"
+      
+      Manufacturer.stringValue = "\((representedObject as! USBDevice).Manufacturer)"
       
       self.view.window!.title = "USB Detective 🔍"
     }
