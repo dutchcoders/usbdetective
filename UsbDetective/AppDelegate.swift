@@ -63,6 +63,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   }()
   
   let aboutItem: NSMenuItem = NSMenuItem(title: "About", action: #selector(doAbout), keyEquivalent: "")
+  let resetItem: NSMenuItem = NSMenuItem(title: "Reset", action: #selector(doReset), keyEquivalent: "")
   let quitItem: NSMenuItem = NSMenuItem(title: "Quit", action: #selector(doQuit), keyEquivalent: "")
   
   @objc func doAbout(sender: AnyObject){
@@ -73,7 +74,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   @objc func doQuit(sender: AnyObject){
     NSApplication.shared.terminate(nil)
   }
-  
+
+  @objc func doReset(sender: AnyObject){
+    let whitelist = [String]()
+    UserDefaults.standard.set(whitelist, forKey: "whitelist")
+    
+    let alert:NSAlert = NSAlert();
+    alert.messageText = "USBDetective";
+    alert.alertStyle = NSAlert.Style.warning
+    alert.informativeText = "USBDetective has been resetted."
+    alert.runModal();
+  }
+
   private func updateMenu() {
     statusItem.menu?.removeAllItems()
     
@@ -136,6 +148,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       self.statusItem.menu?.addItem(newItem)
     }
 
+    statusItem.menu?.addItem(NSMenuItem.separator())
+    statusItem.menu?.addItem(resetItem)
     statusItem.menu?.addItem(NSMenuItem.separator())
     statusItem.menu?.addItem(aboutItem)
     statusItem.menu?.addItem(quitItem)
